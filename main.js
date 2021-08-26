@@ -5,6 +5,9 @@ let player = {
     y: 3,
     z: 0,
     health: 100,
+    hammers: 0,
+    wrenches: 0,
+    kills: 0,
     direction: 3 * Math.PI / 2 + 0.01,
     velocity: {
         x: 0,
@@ -29,17 +32,57 @@ const ImageLoader = {
 let bullets = [];
 let particles = [];
 let enemies = [];
+let pickups = [];
+for (let i = 0; i < 250; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const mag = 30 + 170 * Math.random();
+    let x = mag * Math.cos(angle);
+    let y = mag * Math.sin(angle);
+    let seed = Math.random();
+    if (seed < 0.2) {
+        pickups.push({
+            text: "❤️",
+            x,
+            y,
+            z: 0,
+            color: "red",
+            size: 60,
+            type: "health"
+        })
+    } else if (seed < 0.6) {
+        pickups.push({
+            text: "🔨",
+            x,
+            y,
+            z: 0,
+            color: "red",
+            size: 60,
+            type: "hammer"
+        })
+    } else {
+        pickups.push({
+            text: "🔧",
+            x,
+            y,
+            z: 0,
+            color: "red",
+            size: 60,
+            type: "wrench"
+        })
+    }
+    pickups.push()
+}
 let bulletImage = ImageLoader.load("bullet.png");
 let targetGunTransform = 0;
 let gunTransform = 0;
 const order = (a, b) => b.minDist - a.minDist;
 const orderHeight = (a, b) => a.line.height - b.line.height;
 let obstacleLines = [];
-obstacleLines.push(...createPolygon(0, 0, 2.5, 16).map(line => ({...line, height: 2, color: [0, 255, 0] })));
-obstacleLines.push(...createPolygon(5, 0, 1, 8).map(line => ({...line, height: 1.5, color: [0, 255, 255] })));
-obstacleLines.push(...createPolygon(-5, 0, 1, 8).map(line => ({...line, height: 1.5, color: [0, 255, 255] })));
-obstacleLines.push(...createPolygon(0, 5, 1, 8).map(line => ({...line, height: 1.5, color: [0, 255, 255] })));
-obstacleLines.push(...createPolygon(0, -5, 1, 8).map(line => ({...line, height: 1.5, color: [0, 255, 255] })));
+obstacleLines.push(...createPolygon(0, 0, 2.5, 16).map(line => ({...line, height: 2, color: [0, 255, 0], toughness: 3, important: 2 })));
+obstacleLines.push(...createPolygon(5, 0, 1, 8).map(line => ({...line, height: 1.5, color: [0, 255, 255], toughness: 2, important: 1 })));
+obstacleLines.push(...createPolygon(-5, 0, 1, 8).map(line => ({...line, height: 1.5, color: [0, 255, 255], toughness: 2, important: 1 })));
+obstacleLines.push(...createPolygon(0, 5, 1, 8).map(line => ({...line, height: 1.5, color: [0, 255, 255], toughness: 2, important: 1 })));
+obstacleLines.push(...createPolygon(0, -5, 1, 8).map(line => ({...line, height: 1.5, color: [0, 255, 255], toughness: 2, important: 1 })));
 obstacleLines.push(...createRectangle(0, -0.5, 5, 1));
 obstacleLines.push(...createRectangle(0, -0.5, -5, 1));
 obstacleLines.push(...createRectangle(-0.5, 0, 1, 5));
@@ -57,10 +100,10 @@ obstacleLines.push(...createRectangle(20.5, -20.5, -10, 1));
 obstacleLines.push({ x1: -20.5, y1: -5, x2: -20.5, y2: 5, height: 0.7502, color: [250, 125, 60] });
 obstacleLines.push({ x1: -5, y1: 20.5, x2: 5, y2: 20.5, height: 0.7503, color: [250, 125, 60] });
 obstacleLines.push({ x1: -5, y1: -20.5, x2: 5, y2: -20.5, height: 0.7504, color: [250, 125, 60] });*/
-obstacleLines.push(...createRectangle(20.375, -5, 0.25, 10).map(line => ({...line, height: 0.75, color: [250, 125, 60] })));
-obstacleLines.push(...createRectangle(-20.625, -5, 0.25, 10).map(line => ({...line, height: 0.75, color: [250, 125, 60] })));
-obstacleLines.push(...createRectangle(-5, 20.375, 10, 0.25).map(line => ({...line, height: 0.75, color: [250, 125, 60] })));
-obstacleLines.push(...createRectangle(-5, -20.625, 10, 0.25).map(line => ({...line, height: 0.75, color: [250, 125, 60] })));
+obstacleLines.push(...createRectangle(20.375, -5, 0.25, 10).map(line => ({...line, height: 0.75, color: [250, 125, 60], toughness: 0.5 })));
+obstacleLines.push(...createRectangle(-20.625, -5, 0.25, 10).map(line => ({...line, height: 0.75, color: [250, 125, 60], toughness: 0.5 })));
+obstacleLines.push(...createRectangle(-5, 20.375, 10, 0.25).map(line => ({...line, height: 0.75, color: [250, 125, 60], toughness: 0.5 })));
+obstacleLines.push(...createRectangle(-5, -20.625, 10, 0.25).map(line => ({...line, height: 0.75, color: [250, 125, 60], toughness: 0.5 })));
 for (let i = 0; i < 6; i++) {
     let height = 0.9;
     if (i === 0 || i === 5) {
@@ -100,6 +143,9 @@ obstacleLines.forEach(line => {
     }
     if (!line.color) {
         line.color = [255, 255, 255];
+    }
+    if (!line.toughness) {
+        line.toughness = 1;
     }
 })
 let keys = {};
@@ -150,6 +196,10 @@ let time = Date.now();
 function main() {
     stats.end();
     document.getElementById("playerHealth").style.width = ((player.health) / 100 * 117) + "px";
+    document.getElementById("hammers").innerHTML = player.hammers;
+    document.getElementById("wrenches").innerHTML = player.wrenches;
+    document.getElementById("kills").innerHTML = player.kills;
+    document.getElementById("structure").innerHTML = obstacleLines.filter(line => line.important).reduce((t, v) => t + v.important, 0);
     if (Math.random() < 0.001) {
         let angle = Math.random() * Math.PI * 2;
         enemies.push({
@@ -160,7 +210,8 @@ function main() {
             type: "beholder",
             xVel: 0,
             yVel: 0,
-            health: 3
+            health: 3,
+            target: player
         })
     }
     const timeScale = (Date.now() - time) / 16;
@@ -315,11 +366,15 @@ function main() {
     ctx.moveTo(player.x * 30 + 15, player.y * 30 + 15);
     ctx.lineTo(rayEnd.x * 30 + 15, rayEnd.y * 30 + 15);
     ctx.stroke();*/
-    const sprites = [...bullets, ...particles, ...enemies];
+    const sprites = [...bullets, ...particles, ...enemies, ...pickups];
     sprites.sort((a, b) => Math.hypot(player.x - b.x, player.y - b.y) - Math.hypot(player.x - a.x, player.y - a.y));
     sprites.forEach(sprite => {
         if (bullets.includes(sprite)) {
             const bullet = sprite;
+            if (!bullet.tick) {
+                bullet.tick = 0;
+            }
+            bullet.tick++;
             const angleToPlayer = Math.atan2(bullet.y - player.y, bullet.x - player.x);
             const playerDist = Math.sqrt((bullet.x - player.x) ** 2 + (bullet.y - player.y) ** 2);
             const z = Math.max(playerDist * Math.cos(normalizeAngle(angleToPlayer - normalizeAngle(player.direction))), 0);
@@ -343,15 +398,15 @@ function main() {
                     ctx.fill();
                     //ctx.fillStyle = "rgb(112.5, 75, 0)";
                     ctx.fillStyle = "black";
-                    ctx.globalAlpha = 0.33;
+                    ctx.globalAlpha = 0.33 + bullet.z;
                     ctx.beginPath();
                     ctx.ellipse(x, canvas.height / 2 + player.z * (canvas.height / z) + 0.5 * (canvas.height / z), 15 / z, 5 / z, 0, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.globalAlpha = 1;
                 }
             }
-            bullet.x += bullet.xVel;
-            bullet.y += bullet.yVel;
+            bullet.x += bullet.xVel * timeScale;
+            bullet.y += bullet.yVel * timeScale;
             bullet.bounced -= 1;
             // bullet.xVel *= 1.1;
             // bullet.yVel *= 1.1;
@@ -375,6 +430,19 @@ function main() {
                             yVel: 0.05 * (Math.random() - 0.5),
                             zVel: 0.05 * (Math.random() - 0.5),
                         })
+                    }
+                    if (Math.random() < ((1 / oLine.toughness) * (0.33 - 0.02 * Math.log2(bullet.tick)))) {
+                        obstacleLines.splice(obstacleLines.indexOf(oLine), 1);
+                        const intersectionPoint = perpendicularPoint(oLine, bullet);
+                        const damage = Math.max(Math.min(Math.random() * 0.25 + 0.5 - 0.1 * oLine.toughness, 0.5), 0.2);
+                        const interopAmt = Math.max((Math.hypot(intersectionPoint.x - oLine.x1, intersectionPoint.y - oLine.y1) - 0.5) / Math.hypot(intersectionPoint.x - oLine.x1, intersectionPoint.y - oLine.y1), 0);
+                        const interopAmt2 = Math.max((Math.hypot(intersectionPoint.x - oLine.x2, intersectionPoint.y - oLine.y2) - 0.5) / Math.hypot(intersectionPoint.x - oLine.x2, intersectionPoint.y - oLine.y2), 0);
+                        if (interopAmt > 0) {
+                            obstacleLines.push({ x1: oLine.x1, y1: oLine.y1, x2: oLine.x1 + (intersectionPoint.x - oLine.x1) * interopAmt, y2: oLine.y1 + (intersectionPoint.y - oLine.y1) * interopAmt, height: oLine.height, color: oLine.color, toughness: oLine.toughness });
+                        }
+                        if (interopAmt2 > 0) {
+                            obstacleLines.push({ x1: oLine.x2, y1: oLine.y2, x2: oLine.x2 + (intersectionPoint.x - oLine.x2) * interopAmt2, y2: oLine.y2 + (intersectionPoint.y - oLine.y2) * interopAmt2, height: oLine.height, color: oLine.color, toughness: oLine.toughness });
+                        }
                     }
                     return true;
                 }
@@ -400,7 +468,7 @@ function main() {
                         zVel: 0.05 * (Math.random() - 0.5),
                     })
                 }
-                player.health -= 1 + 4 * Math.random();
+                player.health -= 3 + 5 * Math.random();
                 return;
             }
         } else if (particles.includes(sprite)) {
@@ -440,10 +508,70 @@ function main() {
             if (particle.size < 1) {
                 particles.splice(particles.indexOf(particle), 1);
             }
+        } else if (pickups.includes(sprite)) {
+            const pickup = sprite;
+            const angleToPlayer = Math.atan2(pickup.y - player.y, pickup.x - player.x);
+            const playerDist = Math.sqrt((pickup.x - player.x) ** 2 + (pickup.y - player.y) ** 2);
+            let z = Math.max(playerDist * Math.cos(normalizeAngle(angleToPlayer - normalizeAngle(player.direction))), 0);
+            const x = (Math.tan(normalizeAngle(angleToPlayer - player.direction)) * 0.75 + 0.5) * canvas.width;
+            if (z > 0) {
+                let zbuff = zbuffer[Math.round(x)];
+                if (x < 0) {
+                    zbuff = zbuffer[0];
+                }
+                if (x > canvas.width) {
+                    zbuff = zbuffer[canvas.width - 1];
+                }
+                const normalizedPlayerDist = playerDist * Math.cos(normalizeAngle(angleToPlayer - normalizeAngle(player.direction)));
+                if (normalizedPlayerDist < Math.sqrt(zbuff)) {
+                    /*ctx.beginPath();
+                    ctx.arc(x, canvas.height / 2 + player.z * (canvas.height / z) + pickup.z * (canvas.height / z), pickup.size / z, 0, Math.PI * 2);
+                    ctx.fillStyle = "red";
+                    ctx.fill();*/
+                    ctx.font = `${Math.floor(pickup.size / z)}px serif`;
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = 'middle';
+                    ctx.save();
+                    ctx.fillText(pickup.text, x, canvas.height / 2 + player.z * (canvas.height / z) + pickup.z * (canvas.height / z));
+                    ctx.restore();
+                    ctx.fillStyle = "black";
+                    ctx.globalAlpha = 0.33 + pickup.z;
+                    ctx.beginPath();
+                    const shadowSize = pickup.size / 2 - 25 * pickup.z;
+                    ctx.ellipse(x, canvas.height / 2 + player.z * (canvas.height / z) + 0.5 * (canvas.height / z), shadowSize / z, shadowSize / 3 / z, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+                }
+                pickup.z = 0.15 * Math.sin(Date.now() / 1000);
+            }
+            if (playerDist < 0.5) {
+                if (pickup.type === "health") {
+                    player.health += Math.random() * 10 + 10;
+                    player.health = Math.min(player.health, 100);
+                }
+                if (pickup.type === "hammer") {
+                    player.hammers += 1;
+                }
+                if (pickup.type === "wrench") {
+                    player.wrenches += 1;
+                }
+                pickups.splice(pickups.indexOf(pickup), 1);
+            }
         } else if (enemies.includes(sprite)) {
             const enemy = sprite;
             const angleToPlayer = Math.atan2(enemy.y - player.y, enemy.x - player.x);
             const playerDist = Math.sqrt((enemy.x - player.x) ** 2 + (enemy.y - player.y) ** 2);
+            if (playerDist < Math.hypot(enemy.x, enemy.y)) {
+                enemy.target = { x: player.x, y: player.y };
+            } else {
+                if (obstacleLines.some(line => line.important === 2)) {
+                    enemy.target = { x: Math.random() * 10 - 5, y: Math.random() * 10 - 5 };
+                } else {
+                    enemy.target = { x: 5 * Math.sign(Math.random() - 0.5), y: 5 * Math.sign(Math.random() - 0.5) };
+                }
+            }
+            const angleToTarget = Math.atan2(enemy.y - enemy.target.y, enemy.x - enemy.target.x);
+            const targetDist = Math.sqrt((enemy.x - enemy.target.x) ** 2 + (enemy.y - enemy.target.y) ** 2);
             if (!enemy.shootTick) {
                 enemy.shootTick = 0;
                 enemy.targetTick = 45 + Math.random() * (120 - 45);
@@ -455,23 +583,23 @@ function main() {
                 enemy.dodge = Math.PI / 2;
             }
             enemy.hit--;
-            if (playerDist < 5) {
+            if (targetDist < 5) {
                 enemy.shootTick += 1;
             } else if (enemy.shootTick < enemy.targetTick) {
                 enemy.shootTick += 1;
             }
-            let lineOfSight = { x1: enemy.x, y1: enemy.y, x2: player.x, y2: player.y };
+            let lineOfSight = { x1: enemy.x, y1: enemy.y, x2: enemy.target.x, y2: enemy.target.y };
             let blocked = obstacleLines.some(line => {
                 const intersections = intersect(lineOfSight, line);
-                return intersections.intersect && Math.hypot(intersections.point.x - enemy.x, intersections.point.y - enemy.y) < playerDist;
+                return intersections.intersect && Math.hypot(intersections.point.x - enemy.x, intersections.point.y - enemy.y) < targetDist;
             });
-            if (playerDist > 5 && !blocked) {
-                enemy.xVel += 0.01 * Math.cos(angleToPlayer + Math.PI);
-                enemy.yVel += 0.01 * Math.sin(angleToPlayer + Math.PI);
+            if (targetDist > 5 && !blocked) {
+                enemy.xVel += 0.01 * Math.cos(angleToTarget + Math.PI);
+                enemy.yVel += 0.01 * Math.sin(angleToTarget + Math.PI);
             }
-            if (playerDist < 2 && !blocked) {
-                enemy.xVel -= 0.01 * Math.cos(angleToPlayer + Math.PI);
-                enemy.yVel -= 0.01 * Math.sin(angleToPlayer + Math.PI);
+            if (targetDist < 2 && !blocked) {
+                enemy.xVel -= 0.01 * Math.cos(angleToTarget + Math.PI);
+                enemy.yVel -= 0.01 * Math.sin(angleToTarget + Math.PI);
             }
             enemy.yVel *= 0.9;
             if (obstacleLines.some(oLine => perpendicularDistance(oLine, enemy) < 0.25)) {
@@ -480,8 +608,8 @@ function main() {
                 enemy.x += 3 * enemy.xVel;
                 enemy.y += 3 * enemy.yVel;
             }
-            enemy.x += enemy.xVel;
-            enemy.y += enemy.yVel;
+            enemy.x += enemy.xVel * timeScale;
+            enemy.y += enemy.yVel * timeScale;
             enemy.xVel *= 0.9;
             enemies.forEach(e => {
                 if (e !== enemy) {
@@ -525,22 +653,22 @@ function main() {
                     }
                 }
             })
-            if (playerDist < 5 && enemy.shootTick > enemy.targetTick) {
+            if ((targetDist < 5 || blocked) && enemy.shootTick > enemy.targetTick) {
                 enemy.dodge *= -1;
                 bullets.push({
-                    x: enemy.x + 1 * Math.cos(angleToPlayer + Math.PI),
-                    y: enemy.y + 1 * Math.sin(angleToPlayer + Math.PI),
+                    x: enemy.x + 1 * Math.cos(angleToTarget + Math.PI),
+                    y: enemy.y + 1 * Math.sin(angleToTarget + Math.PI),
                     z: enemy.z + 0.05,
-                    xVel: 0.25 * Math.cos(angleToPlayer + Math.PI),
-                    yVel: 0.25 * Math.sin(angleToPlayer + Math.PI),
+                    xVel: 0.25 * Math.cos(angleToTarget + Math.PI),
+                    yVel: 0.25 * Math.sin(angleToTarget + Math.PI),
                     color: [200, 100, 0],
                     bounced: 0,
                     side: "enemy"
                 });
                 for (let i = 0; i < 20 + Math.floor(Math.random() * 20); i++) {
                     particles.push({
-                        x: enemy.x + 0.1 * (Math.random() - 0.5) + 0.5 * Math.cos(angleToPlayer + Math.PI),
-                        y: enemy.y + 0.1 * (Math.random() - 0.5) + 0.5 * Math.sin(angleToPlayer + Math.PI),
+                        x: enemy.x + 0.1 * (Math.random() - 0.5) + 0.5 * Math.cos(angleToTarget + Math.PI),
+                        y: enemy.y + 0.1 * (Math.random() - 0.5) + 0.5 * Math.sin(angleToTarget + Math.PI),
                         size: 2 + Math.random() * 3,
                         noGrav: true,
                         decayRate: 0.8,
@@ -634,7 +762,7 @@ function main() {
                         ctx.stroke();
                         ctx.fill();
                     }
-                    ctx.globalAlpha = 0.33;
+                    ctx.globalAlpha = 0.33 + enemy.z;
                     ctx.fillStyle = "black";
                     ctx.beginPath();
                     ctx.ellipse(x, canvas.height / 2 + player.z * (canvas.height / z) + 0.5 * (canvas.height / z), enemy.size / z, (enemy.size * 0.2) / z, 0, 0, Math.PI * 2);
@@ -644,6 +772,7 @@ function main() {
             }
             if (enemy.health < 1) {
                 enemies.splice(enemies.indexOf(enemy), 1);
+                player.kills += 1;
             }
         }
     })
@@ -730,18 +859,69 @@ function main() {
     ctx.lineTo(-12, 4);
     ctx.fill();
     ctx.restore();
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 - 5, canvas.height / 2);
+    ctx.lineTo(canvas.width / 2 + 5, canvas.height / 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2, canvas.height / 2 - 5);
+    ctx.lineTo(canvas.width / 2, canvas.height / 2 + 5);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
     stats.begin();
     requestAnimationFrame(main);
 }
 requestAnimationFrame(main);
 document.onkeydown = (e) => {
     keys[e.key] = true;
+    if (e.key === "h" && player.hammers > 0) {
+        player.hammers--;
+        const position = {
+            x: player.x + Math.cos(player.direction),
+            y: player.y + Math.sin(player.direction)
+        }
+        const angle = player.direction + Math.PI / 2;
+        obstacleLines.push({
+            x1: position.x - 0.5 * Math.cos(angle),
+            y1: position.y - 0.5 * Math.sin(angle),
+            x2: position.x + 0.5 * Math.cos(angle),
+            y2: position.y + 0.5 * Math.sin(angle),
+            height: 0.75,
+            color: [250, 125, 60],
+            toughness: 1
+        })
+    }
+    if (e.key === "f" && player.wrenches) {
+        const ray = {
+            x1: player.x,
+            y1: player.y,
+            x2: player.x + 2 * Math.cos(player.direction),
+            y2: player.y + 2 * Math.sin(player.direction)
+        }
+        const line = [...obstacleLines].sort((a, b) => {
+            return perpendicularDistance(a, player) - perpendicularDistance(b, player)
+        }).find(line => {
+            if (intersect(line, ray).intersect) {
+                return true;
+            }
+            return false;
+        });
+        if (line) {
+            player.wrenches--;
+            line.color = [255, 255, 255];
+            line.toughness += 1;
+            line.height += 0.1;
+        }
+    }
 }
 document.onkeyup = (e) => {
     keys[e.key] = false;
 }
 document.onclick = () => {
-    if (targetGunTransform === 0 && gunTransform < 0.05) {
+    if (targetGunTransform === 0 && gunTransform < 0.05 && document.pointerLockElement) {
         targetGunTransform = 0.25;
     }
     canvas.requestPointerLock();
