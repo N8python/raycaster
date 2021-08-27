@@ -7,6 +7,7 @@ let player = {
     health: 100,
     hammers: 0,
     wrenches: 0,
+    bombs: 0,
     kills: 0,
     direction: 3 * Math.PI / 2 + 0.01,
     velocity: {
@@ -33,6 +34,7 @@ let bullets = [];
 let particles = [];
 let enemies = [];
 let pickups = [];
+let bombs = [];
 for (let i = 0; i < 250; i++) {
     const angle = Math.random() * Math.PI * 2;
     const mag = 30 + 170 * Math.random();
@@ -49,7 +51,7 @@ for (let i = 0; i < 250; i++) {
             size: 60,
             type: "health"
         })
-    } else if (seed < 0.6) {
+    } else if (seed < 0.5) {
         pickups.push({
             text: "🔨",
             x,
@@ -59,7 +61,7 @@ for (let i = 0; i < 250; i++) {
             size: 60,
             type: "hammer"
         })
-    } else {
+    } else if (seed < 0.8) {
         pickups.push({
             text: "🔧",
             x,
@@ -68,7 +70,17 @@ for (let i = 0; i < 250; i++) {
             color: "red",
             size: 60,
             type: "wrench"
-        })
+        });
+    } else {
+        pickups.push({
+            text: "💣",
+            x,
+            y,
+            z: 0,
+            color: "red",
+            size: 60,
+            type: "bomb"
+        });
     }
     pickups.push()
 }
@@ -194,11 +206,12 @@ skyGrad.addColorStop(1, "rgb(100, 0, 0)");
 let time = Date.now();
 
 function main() {
-    stats.end();
+    stats.begin();
     document.getElementById("playerHealth").style.width = ((player.health) / 100 * 117) + "px";
     document.getElementById("hammers").innerHTML = player.hammers;
     document.getElementById("wrenches").innerHTML = player.wrenches;
     document.getElementById("kills").innerHTML = player.kills;
+    document.getElementById("bombs").innerHTML = player.bombs;
     document.getElementById("structure").innerHTML = obstacleLines.filter(line => line.important).reduce((t, v) => t + v.important, 0);
     if (Math.random() < 0.001) {
         let angle = Math.random() * Math.PI * 2;
@@ -208,6 +221,20 @@ function main() {
             z: 0,
             size: 60,
             type: "beholder",
+            xVel: 0,
+            yVel: 0,
+            health: 3,
+            target: player
+        })
+    }
+    if (Math.random() < 0.0001) {
+        let angle = Math.random() * Math.PI * 2;
+        enemies.push({
+            x: 50 * Math.cos(angle),
+            y: 50 * Math.sin(angle),
+            z: 0,
+            size: 60,
+            type: "bomber",
             xVel: 0,
             yVel: 0,
             health: 3,
@@ -366,7 +393,7 @@ function main() {
     ctx.moveTo(player.x * 30 + 15, player.y * 30 + 15);
     ctx.lineTo(rayEnd.x * 30 + 15, rayEnd.y * 30 + 15);
     ctx.stroke();*/
-    const sprites = [...bullets, ...particles, ...enemies, ...pickups];
+    const sprites = [...bullets, ...particles, ...enemies, ...pickups, ...bombs];
     sprites.sort((a, b) => Math.hypot(player.x - b.x, player.y - b.y) - Math.hypot(player.x - a.x, player.y - a.y));
     sprites.forEach(sprite => {
         if (bullets.includes(sprite)) {
@@ -437,11 +464,28 @@ function main() {
                         const damage = Math.max(Math.min(Math.random() * 0.25 + 0.5 - 0.1 * oLine.toughness, 0.5), 0.2);
                         const interopAmt = Math.max((Math.hypot(intersectionPoint.x - oLine.x1, intersectionPoint.y - oLine.y1) - 0.5) / Math.hypot(intersectionPoint.x - oLine.x1, intersectionPoint.y - oLine.y1), 0);
                         const interopAmt2 = Math.max((Math.hypot(intersectionPoint.x - oLine.x2, intersectionPoint.y - oLine.y2) - 0.5) / Math.hypot(intersectionPoint.x - oLine.x2, intersectionPoint.y - oLine.y2), 0);
+                        let particle1 = { x: oLine.x1, y: oLine.y1 };
+                        let particle2 = { x: oLine.x2, y: oLine.y2 };
                         if (interopAmt > 0) {
+                            particle1 = { x: oLine.x1 + (intersectionPoint.x - oLine.x1) * interopAmt, y: oLine.y1 + (intersectionPoint.y - oLine.y1) * interopAmt };
                             obstacleLines.push({ x1: oLine.x1, y1: oLine.y1, x2: oLine.x1 + (intersectionPoint.x - oLine.x1) * interopAmt, y2: oLine.y1 + (intersectionPoint.y - oLine.y1) * interopAmt, height: oLine.height, color: oLine.color, toughness: oLine.toughness });
                         }
                         if (interopAmt2 > 0) {
+                            particle2 = { x: oLine.x2 + (intersectionPoint.x - oLine.x2) * interopAmt2, y: oLine.y2 + (intersectionPoint.y - oLine.y2) * interopAmt2 };
                             obstacleLines.push({ x1: oLine.x2, y1: oLine.y2, x2: oLine.x2 + (intersectionPoint.x - oLine.x2) * interopAmt2, y2: oLine.y2 + (intersectionPoint.y - oLine.y2) * interopAmt2, height: oLine.height, color: oLine.color, toughness: oLine.toughness });
+                        }
+                        for (let i = 0; i < 120 + Math.floor(Math.random() * 120); i++) {
+                            particles.push({
+                                x: particle1.x + (particle2.x - particle1.x) * Math.random() + 0.1 * (Math.random() - 0.5),
+                                y: particle1.y + (particle2.y - particle1.y) * (Math.random() - 0.5),
+                                size: 5 + Math.random() * 5,
+                                color,
+                                decayRate: 0.975,
+                                z: (Math.random() * 0.5) * -line.height,
+                                xVel: 0.02 * (Math.random() - 0.5),
+                                yVel: 0.02 * (Math.random() - 0.5),
+                                zVel: 0.05 * (Math.random() - 0.5),
+                            })
                         }
                     }
                     return true;
@@ -504,6 +548,9 @@ function main() {
             particle.y += particle.yVel;
             if (particle.z < 0.5) {
                 particle.z += particle.zVel;
+            } else {
+                particle.xVel *= 0.95;
+                particle.yVel *= 0.95;
             }
             if (particle.size < 1) {
                 particles.splice(particles.indexOf(particle), 1);
@@ -544,7 +591,7 @@ function main() {
                 }
                 pickup.z = 0.15 * Math.sin(Date.now() / 1000);
             }
-            if (playerDist < 0.5) {
+            if (playerDist < 1) {
                 if (pickup.type === "health") {
                     player.health += Math.random() * 10 + 10;
                     player.health = Math.min(player.health, 100);
@@ -555,8 +602,58 @@ function main() {
                 if (pickup.type === "wrench") {
                     player.wrenches += 1;
                 }
+                if (pickup.type === "bomb") {
+                    player.bombs += 1;
+                }
                 pickups.splice(pickups.indexOf(pickup), 1);
             }
+        } else if (bombs.includes(sprite)) {
+            const bomb = sprite;
+            const angleToPlayer = Math.atan2(bomb.y - player.y, bomb.x - player.x);
+            const playerDist = Math.sqrt((bomb.x - player.x) ** 2 + (bomb.y - player.y) ** 2);
+            let z = Math.max(playerDist * Math.cos(normalizeAngle(angleToPlayer - normalizeAngle(player.direction))), 0);
+            const x = (Math.tan(normalizeAngle(angleToPlayer - player.direction)) * 0.75 + 0.5) * canvas.width;
+            if (z > 0) {
+                let zbuff = zbuffer[Math.round(x)];
+                if (x < 0) {
+                    zbuff = zbuffer[0];
+                }
+                if (x > canvas.width) {
+                    zbuff = zbuffer[canvas.width - 1];
+                }
+                if (z < Math.sqrt(zbuff)) {
+                    ctx.font = `${Math.floor(bomb.size / z)}px serif`;
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = 'middle';
+                    ctx.save();
+                    ctx.fillText("💣", x, canvas.height / 2 + player.z * (canvas.height / z) + bomb.z * (canvas.height / z));
+                    ctx.restore();
+                    ctx.fillStyle = "black";
+                    ctx.globalAlpha = 0.33;
+                    ctx.beginPath();
+                    const shadowSize = bomb.size / 2 - 25 * bomb.z;
+                    ctx.ellipse(x, canvas.height / 2 + player.z * (canvas.height / z) + 0.5 * (canvas.height / z), shadowSize / z, shadowSize / 3 / z, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+                }
+            }
+            bomb.x += bomb.xVel;
+            bomb.y += bomb.yVel;
+            bomb.zVel += 0.01;
+            if (bomb.z < 0.5) {
+                bomb.z += bomb.zVel;
+            } else {
+                bombs.splice(bombs.indexOf(bomb), 1);
+                explodeCircle({ x: bomb.x, y: bomb.y, r: Math.random() * 2 + 1 })
+            }
+            obstacleLines.some(oLine => {
+                if (perpendicularDistance(oLine, bomb) < 0.1) {
+                    bombs.splice(bombs.indexOf(bomb), 1);
+                    explodeCircle({ x: bomb.x, y: bomb.y, r: Math.random() * 2 + 1 });
+                }
+            });
+            bomb.xVel *= 0.95;
+            bomb.yVel *= 0.95;
         } else if (enemies.includes(sprite)) {
             const enemy = sprite;
             const angleToPlayer = Math.atan2(enemy.y - player.y, enemy.x - player.x);
@@ -582,6 +679,9 @@ function main() {
             if (!enemy.dodge) {
                 enemy.dodge = Math.PI / 2;
             }
+            if (!enemy.sat) {
+                enemy.sat = 0;
+            }
             enemy.hit--;
             if (targetDist < 5) {
                 enemy.shootTick += 1;
@@ -593,13 +693,49 @@ function main() {
                 const intersections = intersect(lineOfSight, line);
                 return intersections.intersect && Math.hypot(intersections.point.x - enemy.x, intersections.point.y - enemy.y) < targetDist;
             });
-            if (targetDist > 5 && !blocked) {
+            if (enemy.type === "beholder") {
+                if (targetDist > 5 && !blocked) {
+                    enemy.xVel += 0.01 * Math.cos(angleToTarget + Math.PI);
+                    enemy.yVel += 0.01 * Math.sin(angleToTarget + Math.PI);
+                }
+                if (targetDist < 2 && !blocked) {
+                    enemy.xVel -= 0.01 * Math.cos(angleToTarget + Math.PI);
+                    enemy.yVel -= 0.01 * Math.sin(angleToTarget + Math.PI);
+                }
+            } else if (!blocked) {
+                if (targetDist > 3 && !blocked) {
+                    enemy.xVel += 0.01 * Math.cos(angleToTarget + Math.PI);
+                    enemy.yVel += 0.01 * Math.sin(angleToTarget + Math.PI);
+                    if (enemy.size > 60) {
+                        enemy.size -= 2;
+                    }
+                    enemy.sat *= 0.9;
+                } else {
+                    if (targetDist > 1) {
+                        enemy.xVel += 0.01 * Math.cos(angleToTarget + Math.PI);
+                        enemy.yVel += 0.01 * Math.sin(angleToTarget + Math.PI);
+                    }
+                    enemy.sat += 1;
+                }
+            }
+            if (enemy.type === "bomber" && blocked) {
                 enemy.xVel += 0.01 * Math.cos(angleToTarget + Math.PI);
                 enemy.yVel += 0.01 * Math.sin(angleToTarget + Math.PI);
+                const inFront = { x1: enemy.x - 3 * Math.cos(angleToTarget), y1: enemy.y - 3 * Math.sin(angleToTarget), x2: enemy.x + 3 * Math.cos(angleToTarget), y2: enemy.y + 3 * Math.sin(angleToTarget) };
+                const explode = obstacleLines.some(line => {
+                    const intersections = intersect(inFront, line);
+                    return intersections.intersect;
+                });
+                if (explode) {
+                    enemy.sat += 1;
+                }
             }
-            if (targetDist < 2 && !blocked) {
-                enemy.xVel -= 0.01 * Math.cos(angleToTarget + Math.PI);
-                enemy.yVel -= 0.01 * Math.sin(angleToTarget + Math.PI);
+            if (enemy.type === "bomber" && Math.hypot(enemy.x, enemy.y) < 5) {
+                enemy.sat += 1;
+            }
+            if (enemy.type === "bomber" && enemy.sat > 60) {
+                explodeCircle({ x: enemy.x, y: enemy.y, r: 1 + Math.random() * 4 });
+                enemies.splice(enemies.indexOf(enemy), 1);
             }
             enemy.yVel *= 0.9;
             if (obstacleLines.some(oLine => perpendicularDistance(oLine, enemy) < 0.25)) {
@@ -695,79 +831,138 @@ function main() {
                 }
                 const normalizedPlayerDist = playerDist * Math.cos(normalizeAngle(angleToPlayer - normalizeAngle(player.direction)));
                 if (normalizedPlayerDist < Math.sqrt(zbuff)) {
-                    ctx.lineWidth = 4 / z;
-                    ctx.strokeStyle = "black";
                     let y = canvas.height / 2 + player.z * (canvas.height / z) + enemy.z * (canvas.height / z);
-                    ctx.arc(x, y, enemy.size / z, 0, Math.PI * 2);
-                    const grad = ctx.createLinearGradient(0, canvas.height / 2 + player.z * (canvas.height / z) - enemy.z / z + enemy.z * (canvas.height / z), 0, canvas.height / 2 + player.z * (canvas.height / z) + enemy.size / z + enemy.z * (canvas.height / z));
-                    grad.addColorStop(0, "rgb(150, 0, 0)");
-                    grad.addColorStop(1, "rgb(100, 0, 0)");
-                    ctx.fillStyle = grad;
-                    ctx.fill();
-                    ctx.stroke();
-                    ctx.beginPath();
-                    ctx.arc(x, y - (enemy.size) / 3.5 / z, (enemy.size * 0.4) / z, 0, Math.PI * 2);
-                    ctx.fillStyle = "white";
-                    ctx.fill();
-                    ctx.stroke();
-                    ctx.beginPath();
-                    ctx.arc(x, y - (enemy.size) / 3.5 / z + Math.sin(Date.now() / 1000) * (enemy.size) / 15 / z, (enemy.size * 0.25) / z, 0, Math.PI * 2);
-                    ctx.fillStyle = "black";
-                    ctx.fill();
-                    ctx.beginPath();
-                    ctx.arc(x + (enemy.size) / 13 / z, y - (enemy.size) / 3 / z + Math.sin(Date.now() / 1000) * (enemy.size) / 15 / z, (enemy.size * 0.075) / z, 0, Math.PI * 2);
-                    ctx.fillStyle = "white";
-                    ctx.fill();
-                    ctx.beginPath();
-                    ctx.ellipse(x, y + (enemy.size) / 2.25 / z, (enemy.size * 0.5) / z, (enemy.size * (0.15 + 0.15 * enemy.shootTick / enemy.targetTick)) / z, 0, 0, Math.PI * 2);
-                    ctx.fillStyle = "pink";
-                    ctx.fill();
-                    ctx.stroke();
-                    ctx.lineWidth = 2 / z;
-                    ctx.beginPath();
-                    ctx.ellipse(x, y + (enemy.size) / 1.9 / z, (enemy.size * (0.2 - 0.05 * enemy.shootTick / enemy.targetTick)) / z, (enemy.size * (0.05 + 0.1 * enemy.shootTick / enemy.targetTick)) / z, 0, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgb(200, ${75 + 25 * enemy.shootTick / enemy.targetTick}, ${75 - 75 * enemy.shootTick / enemy.targetTick})`;
-                    ctx.fill();
-                    ctx.stroke();
-                    for (let i = -2; i < 2; i++) {
-                        let offset = i * ((enemy.size) / 8 / z);
+                    if (enemy.type === "beholder") {
+                        ctx.lineWidth = 4 / z;
+                        ctx.strokeStyle = "black";
+                        ctx.arc(x, y, enemy.size / z, 0, Math.PI * 2);
+                        const grad = ctx.createLinearGradient(0, canvas.height / 2 + player.z * (canvas.height / z) - enemy.z / z + enemy.z * (canvas.height / z), 0, canvas.height / 2 + player.z * (canvas.height / z) + enemy.size / z + enemy.z * (canvas.height / z));
+                        grad.addColorStop(0, "rgb(150, 0, 0)");
+                        grad.addColorStop(1, "rgb(100, 0, 0)");
+                        ctx.fillStyle = grad;
+                        ctx.fill();
+                        ctx.stroke();
                         ctx.beginPath();
-                        ctx.moveTo(x + offset, y + (enemy.size) / 3.25 / z - enemy.size * 0.125 * enemy.shootTick / enemy.targetTick / z, (enemy.size * 0.2) / z, (enemy.size * 0.05) / z, 0, 0, Math.PI * 2);
-                        ctx.lineTo(x + offset + (enemy.size) / 8 / z, y + (enemy.size) / 3.25 / z - enemy.size * 0.125 * enemy.shootTick / enemy.targetTick / z, (enemy.size * 0.2) / z, (enemy.size * 0.05) / z, 0, 0, Math.PI * 2);
-                        ctx.lineTo(x + offset + (enemy.size) / 16 / z, y + (enemy.size) / 3.25 / z + (enemy.size) / 6 / z - enemy.size * 0.125 * enemy.shootTick / enemy.targetTick / z, (enemy.size * 0.2) / z, (enemy.size * 0.05) / z, 0, 0, Math.PI * 2);
-                        ctx.lineTo(x + offset, y + (enemy.size) / 3.25 / z - enemy.size * 0.125 * enemy.shootTick / enemy.targetTick / z, (enemy.size * 0.2) / z, (enemy.size * 0.05) / z, 0, 0, Math.PI * 2);
+                        ctx.arc(x, y - (enemy.size) / 3.5 / z, (enemy.size * 0.4) / z, 0, Math.PI * 2);
                         ctx.fillStyle = "white";
                         ctx.fill();
                         ctx.stroke();
-                    }
-                    if (enemy.health > 1) {
                         ctx.beginPath();
-                        ctx.lineWidth = 4 / z;
-                        ctx.moveTo(x - (enemy.size) / 2 / z, y - (enemy.size) / 1.15 / z);
-                        ctx.lineTo(x - (enemy.size) / 0.9 / z, y - (enemy.size) / 0.8 / z);
-                        ctx.lineTo(x - (enemy.size) / 1.1 / z, y - (enemy.size) / 2.45 / z);
-                        ctx.lineTo(x - (enemy.size) / 2 / z, y - (enemy.size) / 1.15 / z);
-                        ctx.fillStyle = "rgb(150, 150, 50)";
-                        ctx.stroke();
+                        ctx.arc(x, y - (enemy.size) / 3.5 / z + Math.sin(Date.now() / 1000) * (enemy.size) / 15 / z, (enemy.size * 0.25) / z, 0, Math.PI * 2);
+                        ctx.fillStyle = "black";
                         ctx.fill();
-                    }
-                    if (enemy.health > 2) {
                         ctx.beginPath();
-                        ctx.lineWidth = 4 / z;
-                        ctx.moveTo(x + (enemy.size) / 2 / z, y - (enemy.size) / 1.15 / z);
-                        ctx.lineTo(x + (enemy.size) / 0.9 / z, y - (enemy.size) / 0.8 / z);
-                        ctx.lineTo(x + (enemy.size) / 1.1 / z, y - (enemy.size) / 2.45 / z);
-                        ctx.lineTo(x + (enemy.size) / 2 / z, y - (enemy.size) / 1.15 / z);
-                        ctx.fillStyle = "rgb(150, 150, 50)";
-                        ctx.stroke();
+                        ctx.arc(x + (enemy.size) / 13 / z, y - (enemy.size) / 3 / z + Math.sin(Date.now() / 1000) * (enemy.size) / 15 / z, (enemy.size * 0.075) / z, 0, Math.PI * 2);
+                        ctx.fillStyle = "white";
                         ctx.fill();
+                        ctx.beginPath();
+                        ctx.ellipse(x, y + (enemy.size) / 2.25 / z, (enemy.size * 0.5) / z, (enemy.size * (0.15 + 0.15 * enemy.shootTick / enemy.targetTick)) / z, 0, 0, Math.PI * 2);
+                        ctx.fillStyle = "pink";
+                        ctx.fill();
+                        ctx.stroke();
+                        ctx.lineWidth = 2 / z;
+                        ctx.beginPath();
+                        ctx.ellipse(x, y + (enemy.size) / 1.9 / z, (enemy.size * (0.2 - 0.05 * enemy.shootTick / enemy.targetTick)) / z, (enemy.size * (0.05 + 0.1 * enemy.shootTick / enemy.targetTick)) / z, 0, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgb(200, ${75 + 25 * enemy.shootTick / enemy.targetTick}, ${75 - 75 * enemy.shootTick / enemy.targetTick})`;
+                        ctx.fill();
+                        ctx.stroke();
+                        for (let i = -2; i < 2; i++) {
+                            let offset = i * ((enemy.size) / 8 / z);
+                            ctx.beginPath();
+                            ctx.moveTo(x + offset, y + (enemy.size) / 3.25 / z - enemy.size * 0.125 * enemy.shootTick / enemy.targetTick / z, (enemy.size * 0.2) / z, (enemy.size * 0.05) / z, 0, 0, Math.PI * 2);
+                            ctx.lineTo(x + offset + (enemy.size) / 8 / z, y + (enemy.size) / 3.25 / z - enemy.size * 0.125 * enemy.shootTick / enemy.targetTick / z, (enemy.size * 0.2) / z, (enemy.size * 0.05) / z, 0, 0, Math.PI * 2);
+                            ctx.lineTo(x + offset + (enemy.size) / 16 / z, y + (enemy.size) / 3.25 / z + (enemy.size) / 6 / z - enemy.size * 0.125 * enemy.shootTick / enemy.targetTick / z, (enemy.size * 0.2) / z, (enemy.size * 0.05) / z, 0, 0, Math.PI * 2);
+                            ctx.lineTo(x + offset, y + (enemy.size) / 3.25 / z - enemy.size * 0.125 * enemy.shootTick / enemy.targetTick / z, (enemy.size * 0.2) / z, (enemy.size * 0.05) / z, 0, 0, Math.PI * 2);
+                            ctx.fillStyle = "white";
+                            ctx.fill();
+                            ctx.stroke();
+                        }
+                        if (enemy.health > 1) {
+                            ctx.beginPath();
+                            ctx.lineWidth = 4 / z;
+                            ctx.moveTo(x - (enemy.size) / 2 / z, y - (enemy.size) / 1.15 / z);
+                            ctx.lineTo(x - (enemy.size) / 0.9 / z, y - (enemy.size) / 0.8 / z);
+                            ctx.lineTo(x - (enemy.size) / 1.1 / z, y - (enemy.size) / 2.45 / z);
+                            ctx.lineTo(x - (enemy.size) / 2 / z, y - (enemy.size) / 1.15 / z);
+                            ctx.fillStyle = "rgb(150, 150, 50)";
+                            ctx.stroke();
+                            ctx.fill();
+                        }
+                        if (enemy.health > 2) {
+                            ctx.beginPath();
+                            ctx.lineWidth = 4 / z;
+                            ctx.moveTo(x + (enemy.size) / 2 / z, y - (enemy.size) / 1.15 / z);
+                            ctx.lineTo(x + (enemy.size) / 0.9 / z, y - (enemy.size) / 0.8 / z);
+                            ctx.lineTo(x + (enemy.size) / 1.1 / z, y - (enemy.size) / 2.45 / z);
+                            ctx.lineTo(x + (enemy.size) / 2 / z, y - (enemy.size) / 1.15 / z);
+                            ctx.fillStyle = "rgb(150, 150, 50)";
+                            ctx.stroke();
+                            ctx.fill();
+                        }
+                        ctx.globalAlpha = 0.33 + enemy.z;
+                        ctx.fillStyle = "black";
+                        ctx.beginPath();
+                        ctx.ellipse(x, canvas.height / 2 + player.z * (canvas.height / z) + 0.5 * (canvas.height / z), enemy.size / z, (enemy.size * 0.2) / z, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+                    } else if (enemy.type === "bomber") {
+                        ctx.lineWidth = 4 / z;
+                        ctx.strokeStyle = "black";
+                        ctx.arc(x, y, enemy.size / z, 0, Math.PI * 2);
+                        const grad = ctx.createLinearGradient(0, canvas.height / 2 + player.z * (canvas.height / z) - enemy.z / z + enemy.z * (canvas.height / z), 0, canvas.height / 2 + player.z * (canvas.height / z) + enemy.size / z + enemy.z * (canvas.height / z));
+                        grad.addColorStop(0, `rgb(${5 * enemy.sat}, ${150 + 5 * enemy.sat}, ${5 * enemy.sat})`);
+                        grad.addColorStop(1, `rgb(${5 * enemy.sat}, ${100 + 5 * enemy.sat}, ${150 + 5 * enemy.sat})`);
+                        ctx.fillStyle = grad;
+                        ctx.fill();
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.arc(x - (enemy.size) / 2.5 / z, y - (enemy.size) / 3.5 / z, (enemy.size * 0.3) / z, 0, Math.PI * 2);
+                        ctx.fillStyle = "white";
+                        ctx.fill();
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.arc(x - (enemy.size) / 2.5 / z, y - (enemy.size) / 3.5 / z + Math.sin(Date.now() / 1000) * (enemy.size) / 15 / z, (enemy.size * 0.18) / z, 0, Math.PI * 2);
+                        ctx.fillStyle = "black";
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.arc(x - (enemy.size) / 2.5 / z + (enemy.size) / 13 / z, y - (enemy.size) / 3 / z + Math.sin(Date.now() / 1000) * (enemy.size) / 15 / z, (enemy.size * 0.05) / z, 0, Math.PI * 2);
+                        ctx.fillStyle = "white";
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.arc(x + (enemy.size) / 2.5 / z, y - (enemy.size) / 3.5 / z, (enemy.size * 0.3) / z, 0, Math.PI * 2);
+                        ctx.fillStyle = "white";
+                        ctx.fill();
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.arc(x + (enemy.size) / 2.5 / z, y - (enemy.size) / 3.5 / z + Math.sin(Date.now() / 1000) * (enemy.size) / 15 / z, (enemy.size * 0.18) / z, 0, Math.PI * 2);
+                        ctx.fillStyle = "black";
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.arc(x + (enemy.size) / 2.5 / z + (enemy.size) / 13 / z, y - (enemy.size) / 3 / z + Math.sin(Date.now() / 1000) * (enemy.size) / 15 / z, (enemy.size * 0.05) / z, 0, Math.PI * 2);
+                        ctx.fillStyle = "white";
+                        ctx.fill();
+                        ctx.strokeStyle = "black";
+                        ctx.lineWidth = 5 / z;
+                        ctx.beginPath();
+                        ctx.moveTo(x + (enemy.size) / 1.5 / z, y - (enemy.size) / 1.5 / z);
+                        ctx.bezierCurveTo(x + (enemy.size) / 0.4 / z, y - (enemy.size) / 0.8 / z, x + (enemy.size) / 0.75 / z, y - (enemy.size) / 0.4 / z, x + (enemy.size) / 1.0 / z, y - (enemy.size) / 0.5 / z);
+                        ctx.stroke();
+                        const fireGrad = ctx.createLinearGradient(0, y - (enemy.size) / 0.45 / z, 0, y - (enemy.size) / 0.55 / z);
+                        fireGrad.addColorStop(0, "rgb(200, 100, 0)");
+                        fireGrad.addColorStop(1, "rgb(255, 200, 0)");
+                        ctx.beginPath();
+                        ctx.ellipse(x + (enemy.size) / 1.2 / z, y - (enemy.size) / 0.45 / z, enemy.size / 3 / z, enemy.size / 12 / z, -Math.PI / 4 + Math.PI / 2, 0, Math.PI * 2);
+                        ctx.fillStyle = fireGrad;
+                        ctx.fill();
+                        const mouthGrad = ctx.createLinearGradient(0, y + (enemy.size) / 1.5 / z, 0, y + (enemy.size) / 2.5 / z);
+                        mouthGrad.addColorStop(0, "rgb(200, 100, 0)");
+                        mouthGrad.addColorStop(1, "rgb(255, 200, 0)");
+                        ctx.beginPath();
+                        ctx.ellipse(x, y + (enemy.size) / 2.25 / z, (enemy.size * 0.5) / z, (enemy.size * (0.15 + 0.15 * enemy.shootTick / enemy.targetTick)) / z, 0, 0, Math.PI * 2);
+                        ctx.fillStyle = mouthGrad;
+                        ctx.fill();
+                        ctx.stroke();
                     }
-                    ctx.globalAlpha = 0.33 + enemy.z;
-                    ctx.fillStyle = "black";
-                    ctx.beginPath();
-                    ctx.ellipse(x, canvas.height / 2 + player.z * (canvas.height / z) + 0.5 * (canvas.height / z), enemy.size / z, (enemy.size * 0.2) / z, 0, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.globalAlpha = 1;
                 }
             }
             if (enemy.health < 1) {
@@ -785,12 +980,21 @@ function main() {
     let weaponPosition = { x: canvas.width * 0.8 - gunTransform * 500, y: canvas.height * 0.8 + 5 * mag * Math.sin(Date.now() / bob) - gunTransform * (400) };
     gunTransform += (targetGunTransform - gunTransform) / 5;
     if (Math.abs(gunTransform - targetGunTransform) < 0.1 && targetGunTransform !== 0) {
+        const playerVelAngle = Math.atan2(player.velocity.y, player.velocity.x);
+        let addVelocity = false;
+        if (angleDistance(playerVelAngle, player.direction) < Math.PI / 6) {
+            if (Math.sign(Math.cos(player.direction)) === Math.sign(player.velocity.x)) {
+                if (Math.sign(Math.sin(player.direction)) === Math.sign(player.velocity.y)) {
+                    addVelocity = true;
+                }
+            }
+        }
         bullets.push({
             x: player.x + 1 * Math.cos(player.direction),
             y: player.y + 1 * Math.sin(player.direction),
             z: -player.z,
-            xVel: 0.25 * Math.cos(player.direction),
-            yVel: 0.25 * Math.sin(player.direction),
+            xVel: 0.25 * Math.cos(player.direction) + (addVelocity ? player.velocity.x : 0),
+            yVel: 0.25 * Math.sin(player.direction) + (addVelocity ? player.velocity.y : 0),
             color: [0, 255, 255],
             bounced: 0,
             side: "player"
@@ -814,7 +1018,15 @@ function main() {
     }
     ctx.save();
     ctx.translate(weaponPosition.x - gunTransform, weaponPosition.y - gunTransform);
+    ctx.translate(10, 50);
     ctx.rotate(0.025 * mag * Math.sin(Date.now() / bob));
+    if (gunTransform > 0.05 && targetGunTransform === 0) {
+        ctx.rotate(0.5 - gunTransform);
+    }
+    if (gunTransform < 0.05 && targetGunTransform === 0) {
+        ctx.rotate(0.45 * (gunTransform / 0.05));
+    }
+    ctx.translate(-10, -50);
     ctx.scale(0.75 - gunTransform, 0.8 - gunTransform);
     ctx.fillStyle = "grey";
     ctx.beginPath();
@@ -871,7 +1083,7 @@ function main() {
     ctx.lineTo(canvas.width / 2, canvas.height / 2 + 5);
     ctx.stroke();
     ctx.globalAlpha = 1;
-    stats.begin();
+    stats.end();
     requestAnimationFrame(main);
 }
 requestAnimationFrame(main);
@@ -916,6 +1128,179 @@ document.onkeydown = (e) => {
             line.height += 0.1;
         }
     }
+    if (e.key === "b" && player.bombs) {
+        player.bombs--;
+        const playerVelAngle = Math.atan2(player.velocity.y, player.velocity.x);
+        let addVelocity = false;
+        if (angleDistance(playerVelAngle, player.direction) < Math.PI / 6) {
+            if (Math.sign(Math.cos(player.direction)) === Math.sign(player.velocity.x)) {
+                if (Math.sign(Math.sin(player.direction)) === Math.sign(player.velocity.y)) {
+                    addVelocity = true;
+                }
+            }
+        }
+        bombs.push({
+            x: player.x,
+            y: player.y,
+            z: -player.z,
+            xVel: 0.5 * Math.cos(player.direction) + (addVelocity ? player.velocity.x : 0),
+            yVel: 0.5 * Math.sin(player.direction) + (addVelocity ? player.velocity.y : 0),
+            zVel: -0.1,
+            size: 60,
+        })
+    }
+}
+
+function explodeCircle(circle) {
+    player.health -= Math.max(Math.log2(circle.r) * 10 * (1 - Math.hypot(player.x - circle.x, player.y - circle.y) / circle.r), 0);
+    enemies.forEach(enemy => {
+        if (Math.hypot(enemy.x - circle.x, enemy.y - circle.y) < circle.r * 2) {
+            enemy.health -= 3;
+        }
+        if (Math.hypot(enemy.x - circle.x, enemy.y - circle.y) < circle.r * 3) {
+            enemy.health -= 2;
+        }
+        if (Math.hypot(enemy.x - circle.x, enemy.y - circle.y) < circle.r * 4) {
+            enemy.health -= 1;
+        }
+    })
+    let particleAmount = Math.min(250 + circle.r * 50, 500);
+    for (let i = 0; i < 250 + Math.floor(Math.random() * 250); i++) {
+        particles.push({
+            x: circle.x + (circle.r * 0.1) * (Math.random() - 0.5),
+            y: circle.y + (circle.r * 0.1) * (Math.random() - 0.5),
+            size: 5 + Math.random() * 15 + 3 * circle.r,
+            decayRate: 0.95,
+            color: `rgb(${150 + 100 * Math.random()}, ${100 + 100 * Math.random()}, ${50 * Math.random()})`,
+            z: -Math.random() * Math.min(circle.r * 0.2, 1),
+            xVel: circle.r * 0.25 * (Math.random() - 0.5),
+            yVel: circle.r * 0.25 * (Math.random() - 0.5),
+            zVel: circle.r * 0.25 * (Math.random() - 0.5),
+        })
+    }
+    let toRemove = [];
+    let toTrim = [];
+    obstacleLines.forEach(oline => {
+        if (Math.hypot(oline.x1 - circle.x, oline.y1 - circle.y) < circle.r &&
+            Math.hypot(oline.x2 - circle.x, oline.y2 - circle.y) < circle.r) {
+            //obstacleLines.splice(obstacleLines.indexOf(oline), 1);
+            toRemove.push(oline);
+            return true;
+        }
+    })
+    toRemove.forEach(line => {
+        let lineAngle = Math.atan2(line.y2 - line.y1, line.x2 - line.x1);
+        let shading = 50;
+        shading *= (1.5 - 0.2 * angleDistance(Math.PI, lineAngle));
+        shading = Math.max(Math.min(shading, 200), 50);
+        shading += 50;
+        const color = `rgb(${shading * (line.color[0] / 255)},${shading * (line.color[1] / 255)},${shading * (line.color[2] / 255)})`;
+        for (let i = 0; i < 30 + Math.floor(Math.random() * 30); i++) {
+            particles.push({
+                x: line.x1 + Math.random() * (line.x2 - line.x1) + 0.1 * (Math.random() - 0.5),
+                y: line.y1 + Math.random() * (line.y2 - line.y1) + 0.1 * (Math.random() - 0.5),
+                size: 10 + Math.random() * 10,
+                color,
+                decayRate: 0.975,
+                z: (Math.random() * 0.5) * -line.height,
+                xVel: 0.05 * (Math.random() - 0.5),
+                yVel: 0.05 * (Math.random() - 0.5),
+                zVel: 0.2 * (Math.random() - 0.5),
+            })
+        }
+        obstacleLines.splice(obstacleLines.indexOf(line), 1);
+    });
+    toRemove = [];
+    obstacleLines.forEach(line => {
+        let lineAngle = Math.atan2(line.y2 - line.y1, line.x2 - line.x1);
+        let shading = 50;
+        shading *= (1.5 - 0.2 * angleDistance(Math.PI, lineAngle));
+        shading = Math.max(Math.min(shading, 200), 50);
+        shading += 50;
+        const color = `rgb(${shading * (line.color[0] / 255)},${shading * (line.color[1] / 255)},${shading * (line.color[2] / 255)})`;
+        const testLine = {...line };
+        testLine.x1 += 0.0001;
+        testLine.y2 += 0.0001;
+        const intersects = intersectCircle(testLine, circle);
+        if (intersects.some(intersect => intersect.intersect)) {
+            toRemove.push(line);
+            let amount = intersects.filter(i => i.intersect).length;
+            if (amount === 1) {
+                let point = intersects.find(i => i.intersect).point;
+                const brokenLine = {...line, importance: 0 };
+                if (Math.hypot(brokenLine.x1 - circle.x, brokenLine.y1 - circle.y) <
+                    Math.hypot(brokenLine.x2 - circle.x, brokenLine.y2 - circle.y)) {
+                    brokenLine.x1 = point.x;
+                    brokenLine.y1 = point.y;
+                    for (let i = 0; i < 20 + Math.floor(Math.random() * 20); i++) {
+                        particles.push({
+                            x: line.x1 + Math.random() * (point.x - line.x1) + 0.1 * (Math.random() - 0.5),
+                            y: line.y1 + Math.random() * (point.y - line.y1) + 0.1 * (Math.random() - 0.5),
+                            size: 10 + Math.random() * 10,
+                            color,
+                            decayRate: 0.975,
+                            z: (Math.random() * 0.5) * -line.height,
+                            xVel: 0.05 * (Math.random() - 0.5),
+                            yVel: 0.05 * (Math.random() - 0.5),
+                            zVel: 0.2 * (Math.random() - 0.5),
+                        })
+                    }
+                } else {
+                    brokenLine.x2 = point.x;
+                    brokenLine.y2 = point.y;
+                    for (let i = 0; i < 10 + Math.floor(Math.random() * 10); i++) {
+                        particles.push({
+                            x: line.x2 + Math.random() * (point.x - line.x2) + 0.1 * (Math.random() - 0.5),
+                            y: line.y2 + Math.random() * (point.y - line.y2) + 0.1 * (Math.random() - 0.5),
+                            size: 10 + Math.random() * 10,
+                            color,
+                            decayRate: 0.975,
+                            z: (Math.random() * 0.5) * -line.height,
+                            xVel: 0.05 * (Math.random() - 0.5),
+                            yVel: 0.05 * (Math.random() - 0.5),
+                            zVel: 0.2 * (Math.random() - 0.5),
+                        })
+                    }
+                }
+                obstacleLines.push(brokenLine);
+            } else {
+                let point1 = intersects[0].point;
+                let point2 = intersects[1].point;
+                for (let i = 0; i < 20 + Math.floor(Math.random() * 20); i++) {
+                    particles.push({
+                        x: point1.x + Math.random() * (point2.x - point1.x) + 0.5 * (Math.random() - 0.5),
+                        y: point1.y + Math.random() * (point2.y - point1.y) + 0.5 * (Math.random() - 0.5),
+                        size: 5 + Math.random() * 5,
+                        color,
+                        decayRate: 0.95,
+                        z: (Math.random() * 0.5) * -line.height,
+                        xVel: 0.2 * (Math.random() - 0.5),
+                        yVel: 0.2 * (Math.random() - 0.5),
+                        zVel: 0.2 * (Math.random() - 0.5),
+                    })
+                }
+                const brokenLine1 = {...line, importance: 0 };
+                const brokenLine2 = {...line, importance: 0 };
+                if (Math.hypot(point1.x - line.x1, point1.y - line.y1) <
+                    Math.hypot(point2.x - line.x2, point2.y - line.y2)) {
+                    brokenLine1.x2 = point1.x;
+                    brokenLine1.y2 = point1.y;
+                    brokenLine2.x1 = point2.x;
+                    brokenLine2.y1 = point2.y;
+                } else {
+                    brokenLine1.x2 = point2.x;
+                    brokenLine1.y2 = point2.y;
+                    brokenLine2.x1 = point1.x;
+                    brokenLine2.y1 = point1.y;
+                }
+                obstacleLines.push(brokenLine1);
+                obstacleLines.push(brokenLine2);
+            }
+        }
+    });
+    toRemove.forEach(line => {
+        obstacleLines.splice(obstacleLines.indexOf(line), 1);
+    });
 }
 document.onkeyup = (e) => {
     keys[e.key] = false;
@@ -932,5 +1317,5 @@ document.onmousemove = (e) => {
     }
 }
 var stats = new Stats();
-stats.showPanel(0);
+stats.showPanel(1);
 document.body.appendChild(stats.dom);
