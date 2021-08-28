@@ -4,11 +4,12 @@ let player = {
     x: 3,
     y: 3,
     z: 0,
-    health: 100,
+    health: 300,
     hammers: 0,
     wrenches: 0,
     bombs: 0,
     kills: 0,
+    deathTick: 0,
     direction: 3 * Math.PI / 2 + 0.01,
     velocity: {
         x: 0,
@@ -16,6 +17,14 @@ let player = {
         z: 0
     }
 }
+let wave = { num: 1, timeLeft: 60 };
+let waves = [
+    [5, 0, 60],
+    [6, 0, 60],
+    [8, 0, 120],
+    [2, 1, 120],
+    [10, 5, 180],
+]
 const ImageLoader = {
     load(src) {
         const canvas = document.createElement('canvas');
@@ -207,13 +216,49 @@ let time = Date.now();
 
 function main() {
     stats.begin();
-    document.getElementById("playerHealth").style.width = ((player.health) / 100 * 117) + "px";
+    document.getElementById("playerHealth").style.width = ((player.health) / 300 * 117) + "px";
     document.getElementById("hammers").innerHTML = player.hammers;
     document.getElementById("wrenches").innerHTML = player.wrenches;
     document.getElementById("kills").innerHTML = player.kills;
     document.getElementById("bombs").innerHTML = player.bombs;
     document.getElementById("structure").innerHTML = obstacleLines.filter(line => line.important).reduce((t, v) => t + v.important, 0);
-    if (Math.random() < 0.001) {
+    document.getElementById("wave").innerHTML = `Wave ${wave.num}<br>(${Math.round(wave.timeLeft)} ⏱)`;
+    if (wave.timeLeft < 1 && wave.num <= waves.length) {
+        for (let i = 0; i < waves[wave.num - 1][0]; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            enemies.push({
+                x: 50 * Math.cos(angle),
+                y: 50 * Math.sin(angle),
+                z: 0,
+                size: 60,
+                type: "beholder",
+                xVel: 0,
+                yVel: 0,
+                health: 3,
+                target: player
+            });
+        }
+        for (let i = 0; i < waves[wave.num - 1][1]; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            enemies.push({
+                x: 50 * Math.cos(angle),
+                y: 50 * Math.sin(angle),
+                z: 0,
+                size: 60,
+                type: "bomber",
+                xVel: 0,
+                yVel: 0,
+                health: 3,
+                target: player
+            });
+        }
+        wave.num += 1;
+        if (wave.num <= waves.length) {
+            wave.timeLeft = waves[wave.num - 1][2];
+        }
+    }
+    wave.timeLeft -= (Date.now() - time) / 1000;
+    if (Math.random() < 0.001 && wave.num < 6) {
         let angle = Math.random() * Math.PI * 2;
         enemies.push({
             x: 50 * Math.cos(angle),
@@ -225,9 +270,9 @@ function main() {
             yVel: 0,
             health: 3,
             target: player
-        })
+        });
     }
-    if (Math.random() < 0.0001) {
+    if (Math.random() < 0.0001 && wave.num < 6) {
         let angle = Math.random() * Math.PI * 2;
         enemies.push({
             x: 50 * Math.cos(angle),
@@ -282,6 +327,11 @@ function main() {
         player.z = 0;
         futureCam.z = 0;
         player.velocity.z = 0;
+    }
+    if (player.deathTick) {
+        futureCam.z -= Math.min(player.deathTick * 0.05, 0.5);
+        futureCam.x = player.x;
+        futureCam.y = player.y;
     }
     if (obstacleLines.every(oLine => perpendicularDistance(oLine, futureCam) > 0.175)) {
         player = futureCam;
@@ -512,7 +562,7 @@ function main() {
                         zVel: 0.05 * (Math.random() - 0.5),
                     })
                 }
-                player.health -= 3 + 5 * Math.random();
+                player.health -= 2 + 5 * Math.random();
                 return;
             }
         } else if (particles.includes(sprite)) {
@@ -593,8 +643,8 @@ function main() {
             }
             if (playerDist < 1) {
                 if (pickup.type === "health") {
-                    player.health += Math.random() * 10 + 10;
-                    player.health = Math.min(player.health, 100);
+                    player.health += Math.random() * 20 + 20;
+                    player.health = Math.min(player.health, 300);
                 }
                 if (pickup.type === "hammer") {
                     player.hammers += 1;
@@ -647,7 +697,7 @@ function main() {
                 explodeCircle({ x: bomb.x, y: bomb.y, r: Math.random() * 2 + 1 })
             }
             obstacleLines.some(oLine => {
-                if (perpendicularDistance(oLine, bomb) < 0.1) {
+                if (perpendicularDistance(oLine, bomb) < 0.15) {
                     bombs.splice(bombs.indexOf(bomb), 1);
                     explodeCircle({ x: bomb.x, y: bomb.y, r: Math.random() * 2 + 1 });
                 }
@@ -1017,7 +1067,7 @@ function main() {
         targetGunTransform = 0;
     }
     ctx.save();
-    ctx.translate(weaponPosition.x - gunTransform, weaponPosition.y - gunTransform);
+    ctx.translate(weaponPosition.x - gunTransform, weaponPosition.y - gunTransform + 5 * player.deathTick);
     ctx.translate(10, 50);
     ctx.rotate(0.025 * mag * Math.sin(Date.now() / bob));
     if (gunTransform > 0.05 && targetGunTransform === 0) {
@@ -1084,6 +1134,53 @@ function main() {
     ctx.stroke();
     ctx.globalAlpha = 1;
     stats.end();
+    ctx.save();
+    if (performance.now() < 3500) {
+        ctx.globalAlpha = Math.max(1 - (performance.now() - 1000) / 2500, 0);
+        ctx.font = "50px serif";
+        ctx.fillStyle = "orange";
+        ctx.shadowColor = "black";
+        ctx.textAlign = "center";
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 6;
+        ctx.shadowOffsetY = 6;
+        ctx.fillText("Mars Defence", canvas.width * 0.5, canvas.height * 0.5);
+    }
+    if (wave.num > 5 && enemies.length < 1) {
+        ctx.font = "50px serif";
+        ctx.fillStyle = "orange";
+        ctx.shadowColor = "black";
+        ctx.textAlign = "center";
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 6;
+        ctx.shadowOffsetY = 6;
+        ctx.fillText("You Won", canvas.width * 0.5, canvas.height * 0.5);
+        ctx.font = "25px serif";
+        ctx.fillText("Score: " + obstacleLines.filter(line => line.important).reduce((t, v) => t + v.important, 0), canvas.width * 0.5, canvas.height * 0.65);
+    }
+    if (player.health <= 0) {
+        ctx.font = "50px serif";
+        ctx.fillStyle = "orange";
+        ctx.shadowColor = "black";
+        ctx.textAlign = "center";
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 6;
+        ctx.shadowOffsetY = 6;
+        ctx.fillText("You Lose", canvas.width * 0.5, canvas.height * 0.5);
+        ctx.font = "25px serif";
+        ctx.fillText("Press R to Restart", canvas.width * 0.5, canvas.height * 0.65);
+        player.xVel = 0;
+        player.yVel = 0;
+        if (!player.deathTick) {
+            player.deathTick = 0;
+        }
+        gunTransform = 0;
+        player.deathTick++;
+    }
+    ctx.restore();
     requestAnimationFrame(main);
 }
 requestAnimationFrame(main);
@@ -1149,10 +1246,13 @@ document.onkeydown = (e) => {
             size: 60,
         })
     }
+    if (e.key === "r" && player.deathTick > 0) {
+        location.reload();
+    }
 }
 
 function explodeCircle(circle) {
-    player.health -= Math.max(Math.log2(circle.r) * 10 * (1 - Math.hypot(player.x - circle.x, player.y - circle.y) / circle.r), 0);
+    player.health -= Math.max(Math.log2(circle.r) * 30 * (1 - Math.hypot(player.x - circle.x, player.y - circle.y) / (circle.r * 2)), 0);
     enemies.forEach(enemy => {
         if (Math.hypot(enemy.x - circle.x, enemy.y - circle.y) < circle.r * 2) {
             enemy.health -= 3;
@@ -1312,10 +1412,10 @@ document.onclick = () => {
     canvas.requestPointerLock();
 }
 document.onmousemove = (e) => {
-    if (document.pointerLockElement) {
+    if (document.pointerLockElement && player.deathTick === 0) {
         player.direction += e.movementX * 0.003;
     }
 }
 var stats = new Stats();
-stats.showPanel(1);
+stats.showPanel(0);
 document.body.appendChild(stats.dom);
