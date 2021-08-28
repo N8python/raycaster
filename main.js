@@ -222,7 +222,7 @@ function main() {
     document.getElementById("kills").innerHTML = player.kills;
     document.getElementById("bombs").innerHTML = player.bombs;
     document.getElementById("structure").innerHTML = obstacleLines.filter(line => line.important).reduce((t, v) => t + v.important, 0);
-    document.getElementById("wave").innerHTML = `Wave ${wave.num}<br>(${Math.round(wave.timeLeft)} ⏱)`;
+    document.getElementById("wave").innerHTML = `Wave ${wave.num}<br>(${Math.round(wave.timeLeft)}s)`;
     if (wave.timeLeft < 1 && wave.num <= waves.length) {
         for (let i = 0; i < waves[wave.num - 1][0]; i++) {
             let angle = Math.random() * Math.PI * 2;
